@@ -28,7 +28,6 @@ start_time = time.time()
 # Call constrained kmeans pipeline
 # handle_cannot_link = False (cannot-link not handled yet)
 df_result = constrained_kmeans(
-    spark,
     df_data,
     df_ml,
     df_cl,
