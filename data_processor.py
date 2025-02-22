@@ -10,8 +10,9 @@ def prepare_data():
     # dataset_path = "hdfs://localhost:9000/data/small/movement_libras_data.csv"
     # dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
     # dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
-    # dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
-    dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
+    dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/ionosphere_data.csv"
 
     # LARGE
     # dataset_path = "hdfs://localhost:9000/data/large/mnist_data.csv"
@@ -34,8 +35,9 @@ def prepare_data():
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.2.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.2.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.2.json"
-    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.2.json"
-    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.2.json"
+    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.2.json"
 
     # LARGE
     # constraints_path = "hdfs://localhost:9000/data/large/constraint sets/mnist_constraints_0.005.json"
