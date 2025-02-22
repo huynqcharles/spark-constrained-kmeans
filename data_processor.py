@@ -6,10 +6,17 @@ def prepare_data():
     spark = SparkSession.builder.getOrCreate()
 
     # Read data from HDFS
-    dataset_path = "hdfs://localhost:9000/data/data.csv"
-    # dataset_path = "hdfs://localhost:9000/data/movement_libras_data.csv"
-    dataset_path = "hdfs://localhost:9000/data/breast_cancer_data.csv"
-    # dataset_path = "hdfs://localhost:9000/data/vehicle_data.csv"
+    # SMALL
+    # dataset_path = "hdfs://localhost:9000/data/small/movement_libras_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
+    dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
+
+    # LARGE
+    # dataset_path = "hdfs://localhost:9000/data/large/mnist_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/large/shuttle_data.csv"
+
     df_data = spark.read.csv(dataset_path, header=True, inferSchema=True)
 
     # Create id column
@@ -23,10 +30,17 @@ def prepare_data():
     df_data = assembler.transform(df_data).select("id", "features")
 
     # Read constraints from HDFS
-    constraints_path = "hdfs://localhost:9000/data/constraints.json"
-    # constraints_path = "hdfs://localhost:9000/data/movement_libras_constraints_0.2.json"
-    constraints_path = "hdfs://localhost:9000/data/breast_cancer_constraints_0.2.json"
-    # constraints_path = "hdfs://localhost:9000/data/vehicle_constraints_0.2.json"
+    # SMALL
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.2.json"
+    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.2.json"
+
+    # LARGE
+    # constraints_path = "hdfs://localhost:9000/data/large/constraint sets/mnist_constraints_0.005.json"
+    # constraints_path = "hdfs://localhost:9000/data/large/constraint sets/shuttle_constraints_0.01.json"
+
     df_json = spark.read.json(constraints_path)
 
     df_ml = df_json.selectExpr(

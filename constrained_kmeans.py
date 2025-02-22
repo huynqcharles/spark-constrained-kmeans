@@ -423,6 +423,243 @@ def constrained_kmeans(
     end_time = time.time()
     print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
 
-    # ...
+    # 4) Xử lý cannot-link nếu được yêu cầu
+    if handle_cannot_link:
+        start_time = time.time()
+        
+        # Kiểm tra vi phạm cannot-link
+        df_violations = check_cannot_link_violations(
+            df_result, 
+            df_cl,
+            id_col=id_col,
+            cluster_col="final_cluster"  # Chỉ định rõ tên cột
+        )
+        num_violations = df_violations.count()
+        
+        if num_violations > 0:
+            print(f"Found {num_violations} cannot-link violations, attempting to fix...")
+            
+            # Xử lý vi phạm
+            df_result = postprocess_cannot_link(
+                df_result,
+                df_cl,
+                max_iter=5,
+                id_col=id_col,
+                features_col=features_col,
+                cluster_col="final_cluster"  # Chỉ định rõ tên cột
+            )
+            
+            # Kiểm tra lại sau khi xử lý
+            df_violations_after = check_cannot_link_violations(
+                df_result,
+                df_cl,
+                id_col=id_col,
+                cluster_col="final_cluster"  # Chỉ định rõ tên cột
+            )
+            num_violations_after = df_violations_after.count()
+            
+            print(f"After postprocessing: {num_violations_after} cannot-link violations remain")
+            
+        end_time = time.time()
+        print(f"Step 4 (postprocess_cannot_link) took {end_time - start_time} seconds")
+
+    # Validate kết quả cuối cùng
+    validate_clustering_result(
+        df_result,
+        df_ml,
+        df_cl,
+        k,
+        id_col=id_col,
+        cluster_col="final_cluster"  # Chỉ định rõ tên cột
+    )
 
     return df_result
+
+
+def calculate_centroids(df_clustered, df_data, k, cluster_col="cluster_id", features_col="features"):
+    """
+    Tính centroids cho mỗi cluster
+    """
+    return compute_centroids_rdd(
+        df_clustered, 
+        cluster_col=cluster_col,
+        features_col=features_col
+    )
+
+
+def validate_clustering_result(df_result, df_ml, df_cl, k, id_col="id"):
+    """
+    Validate kết quả clustering cuối cùng
+    """
+    # Kiểm tra số lượng clusters
+    num_clusters = df_result.select("cluster_id").distinct().count()
+    assert num_clusters <= k, f"Found {num_clusters} clusters, expected <= {k}"
+    
+    # Kiểm tra must-link
+    ml_violations = check_must_link_violations(df_result, df_ml, id_col)
+    num_ml_violations = ml_violations.count()
+    
+    # Kiểm tra cannot-link
+    cl_violations = check_cannot_link_violations(df_result, df_cl, id_col)
+    num_cl_violations = cl_violations.count()
+    
+    print(f"\nValidation Results:")
+    print(f"Number of clusters: {num_clusters}")
+    print(f"Must-link violations: {num_ml_violations}")
+    print(f"Cannot-link violations: {num_cl_violations}")
+
+def check_cannot_link_violations(df_clustered, df_cl, id_col="id", cluster_col="final_cluster"):
+    """
+    Kiểm tra các vi phạm cannot-link trong kết quả clustering
+    
+    Parameters:
+    -----------
+    df_clustered : DataFrame
+        DataFrame đã được gán cluster
+    df_cl : DataFrame
+        DataFrame chứa các ràng buộc cannot-link
+    id_col : str
+        Tên cột id
+    cluster_col : str
+        Tên cột chứa nhãn cluster
+    """
+    return df_cl.join(
+        df_clustered.select(
+            F.col(id_col).alias("id1"),
+            F.col(cluster_col).alias("cluster1")
+        ),
+        "id1"
+    ).join(
+        df_clustered.select(
+            F.col(id_col).alias("id2"),
+            F.col(cluster_col).alias("cluster2")
+        ),
+        "id2"
+    ).filter(F.col("cluster1") == F.col("cluster2"))
+
+def check_must_link_violations(df_clustered, df_ml, id_col="id", cluster_col="final_cluster"):
+    """
+    Kiểm tra các vi phạm must-link trong kết quả clustering
+    """
+    return df_ml.join(
+        df_clustered.select(
+            F.col(id_col).alias("id1"),
+            F.col(cluster_col).alias("cluster1")
+        ),
+        "id1"
+    ).join(
+        df_clustered.select(
+            F.col(id_col).alias("id2"),
+            F.col(cluster_col).alias("cluster2")
+        ),
+        "id2"
+    ).filter(F.col("cluster1") != F.col("cluster2"))
+
+def validate_clustering_result(df_result, df_ml, df_cl, k, id_col="id", cluster_col="final_cluster"):
+    """
+    Validate kết quả clustering cuối cùng
+    """
+    # Kiểm tra số lượng clusters
+    num_clusters = df_result.select(cluster_col).distinct().count()
+    assert num_clusters <= k, f"Found {num_clusters} clusters, expected <= {k}"
+    
+    # Kiểm tra must-link
+    ml_violations = check_must_link_violations(
+        df_result, 
+        df_ml, 
+        id_col=id_col,
+        cluster_col=cluster_col
+    )
+    num_ml_violations = ml_violations.count()
+    
+    # Kiểm tra cannot-link
+    cl_violations = check_cannot_link_violations(
+        df_result,
+        df_cl,
+        id_col=id_col,
+        cluster_col=cluster_col
+    )
+    num_cl_violations = cl_violations.count()
+    
+    print(f"\nValidation Results:")
+    print(f"Number of clusters: {num_clusters}")
+    print(f"Must-link violations: {num_ml_violations}")
+    print(f"Cannot-link violations: {num_cl_violations}")
+
+def postprocess_cannot_link(
+    df_clustered,
+    df_cl,
+    max_iter=5,
+    id_col="id",
+    features_col="features",
+    cluster_col="final_cluster"  # Thay đổi tên cột mặc định
+):
+    """
+    Hậu xử lý cannot-link bằng heuristic dựa trên khoảng cách
+    """
+    spark = df_clustered.sparkSession
+    
+    for it in range(max_iter):
+        print(f"\n[Iter {it}] Bắt đầu vòng lặp hậu xử lý cannot-link")
+        
+        # Kiểm tra vi phạm
+        df_violations = check_cannot_link_violations(
+            df_clustered,
+            df_cl,
+            id_col=id_col,
+            cluster_col=cluster_col
+        )
+        violation_count = df_violations.count()
+        print(f"Number of cannot-link violations: {violation_count}")
+        
+        if violation_count == 0:
+            print("Không còn vi phạm cannot-link. Dừng vòng lặp.")
+            break
+            
+        # Lấy thông tin vector (features) của các điểm id2 dưới dạng array
+        df_id2_features = df_clustered.select(
+            F.col(id_col).alias("id2"),
+            vector_to_array(F.col(features_col)).alias("feat2")
+        )
+        
+        # Join để lấy feat2 cho các điểm vi phạm từ df_violations
+        df_v = df_violations.join(df_id2_features, on="id2", how="inner")
+        
+        # Tính centroid cho mỗi cụm từ df_clustered
+        df_centroids = compute_centroids_rdd(df_clustered, cluster_col, features_col)
+        df_centroids = F.broadcast(df_centroids)
+        
+        # Cross join với df_centroids để tính khoảng cách đến tất cả các cụm, loại trừ cụm hiện tại (the_cluster)
+        df_candidates = (
+            df_v.crossJoin(df_centroids)
+            .filter(F.col("cluster_id") != F.col("cluster1"))
+        )
+        
+        # Chuyển centroid sang dạng array để tính khoảng cách
+        df_candidates = df_candidates.withColumn("centroid_arr", vector_to_array(F.col("centroid")))
+        
+        # Tính khoảng cách Euclid giữa feat2 và centroid_arr bằng Pandas UDF
+        df_candidates = df_candidates.withColumn("dist_col", euclid_dist_pd(F.col("feat2"), F.col("centroid_arr")))
+        
+        # Lựa chọn cụm ứng viên tốt nhất cho mỗi điểm vi phạm
+        w = Window.partitionBy("id2").orderBy(F.col("dist_col").asc())
+        df_best_candidates = (
+            df_candidates.withColumn("rn", F.row_number().over(w))
+            .filter(F.col("rn") == 1)
+            .select("id2", F.col("cluster_id").alias("new_cluster"), "dist_col")
+        )
+        
+        # Cập nhật nhãn cụm của các điểm vi phạm (id2) trong df_clustered
+        df_clustered = (
+            df_clustered.alias("A")
+            .join(df_best_candidates.alias("B"), F.col("A.id") == F.col("B.id2"), "left")
+            .withColumn(
+                cluster_col,
+                F.when(F.col("B.new_cluster").isNotNull(), F.col("B.new_cluster"))
+                 .otherwise(F.col("A." + cluster_col))
+            )
+            .select("A.id", "A.features", cluster_col)
+        )
+        print(f"[Iter {it}] Đã cập nhật nhãn cụm cho các điểm vi phạm.")
+    
+    return df_clustered
