@@ -7,16 +7,41 @@ def prepare_data():
 
     # Read data from HDFS
     # SMALL
-    # dataset_path = "hdfs://localhost:9000/data/small/movement_libras_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/appendicitis_data.csv"
+
     # dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
-    # dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
-    dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
-    # dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/ecoli_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/glass_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/haberman_data.csv"
+
     # dataset_path = "hdfs://localhost:9000/data/small/ionosphere_data.csv"
 
-    # LARGE
-    # dataset_path = "hdfs://localhost:9000/data/large/mnist_data.csv"
-    # dataset_path = "hdfs://localhost:9000/data/large/shuttle_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/iris_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/led7digit_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/monk-2_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/moons_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/movement_libras_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/newthyroid_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/spiral_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
+
+    # dataset_path = "hdfs://localhost:9000/data/small/wine_data.csv"
+
+    dataset_path = "hdfs://localhost:9000/data/small/zoo_data.csv"
 
     df_data = spark.read.csv(dataset_path, header=True, inferSchema=True)
 
@@ -32,16 +57,95 @@ def prepare_data():
 
     # Read constraints from HDFS
     # SMALL
-    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/appendicitis_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/appendicitis_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/appendicitis_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/appendicitis_constraints_0.2.json"
+    
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.15.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.2.json"
-    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.2.json"
-    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.2.json"
-    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/glass_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/glass_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/glass_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/glass_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/haberman_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/haberman_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/haberman_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/haberman_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.15.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.2.json"
 
-    # LARGE
-    # constraints_path = "hdfs://localhost:9000/data/large/constraint sets/mnist_constraints_0.005.json"
-    # constraints_path = "hdfs://localhost:9000/data/large/constraint sets/shuttle_constraints_0.01.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/iris_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/iris_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/iris_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/iris_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/led7digit_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/led7digit_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/led7digit_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/led7digit_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/monk-2_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/monk-2_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/monk-2_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/monk-2_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/moons_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/moons_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/moons_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/moons_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/movement_libras_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/newthyroid_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/newthyroid_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/newthyroid_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/newthyroid_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/sonar_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spectfheart_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spiral_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spiral_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spiral_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/spiral_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/wine_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/wine_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/wine_constraints_0.15.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/wine_constraints_0.2.json"
+
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/zoo_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/zoo_constraints_0.1.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/zoo_constraints_0.15.json"
+    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/zoo_constraints_0.2.json"
 
     df_json = spark.read.json(constraints_path)
 

@@ -175,8 +175,6 @@ def postprocess_cannot_link(
     features_col="features", 
     cluster_col="final_cluster"
 ):
-    df_result = df_result.cache()
-
     for it in range(max_iter):
         print(f"\n[Iter {it}] Starting cannot-link postprocessing")
 
@@ -195,6 +193,7 @@ def postprocess_cannot_link(
             .filter(F.col("cluster1") == F.col("cluster2"))
             .select("id1", "id2", F.col("cluster1").alias("the_cluster"))
         )
+        df_violations = df_violations.checkpoint()
         violation_count = df_violations.count()
         print(f"Number of cannot-link violations: {violation_count}")
 
@@ -217,6 +216,9 @@ def postprocess_cannot_link(
         df_candidates = df_candidates.withColumn("centroid_arr", vector_to_array(F.col("centroid")))
         df_candidates = df_candidates.withColumn("dist_col", euclid_dist_pd(F.col("feat2"), F.col("centroid_arr")))
 
+        df_candidates = df_candidates.checkpoint()
+        df_candidates.cache()
+
         # Select closest valid cluster for each violated point
         w = Window.partitionBy("id2").orderBy(F.col("dist_col").asc())
         df_best_candidates = (
@@ -236,6 +238,10 @@ def postprocess_cannot_link(
             )
             .select("A.id", "A.features", cluster_col)
         )
+
+        df_result = df_result.checkpoint()
+        df_result.cache()
+
         print(f"[Iter {it}] Updated cluster assignments for violated points")
 
     return df_result
@@ -247,8 +253,7 @@ def constrained_kmeans(
     df_cl: DataFrame,
     k: int,
     id_col="id",
-    features_col="features",
-    handle_cannot_link=False
+    features_col="features"
 ):
     # Cache input dataframes since they'll be used multiple times
     df_data.cache()
@@ -301,46 +306,25 @@ def constrained_kmeans(
         print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
 
         # 4) Handle cannot-link and must-link violations
-        if handle_cannot_link:
-            start_time = time.time()
+        start_time = time.time()
             
-            # Process violations and cache intermediate results
-            df_result = postprocess_cannot_link(
+        # Process violations and cache intermediate results
+        df_result = postprocess_cannot_link(
                 df_result,
                 df_cl,
                 max_iter=5,
                 id_col=id_col,
                 features_col=features_col,
                 cluster_col="final_cluster"
-            )
-            df_result.cache()
+        )
+        df_result.cache()
             
-            # Checkpoint after expensive iterations
-            df_result.checkpoint()
-            df_result.count()  # Force checkpoint execution
-
-            # Check remaining cannot-link violations
-            df_violations_cl = check_cannot_link_violations(
-                df_result,
-                df_cl,
-                id_col=id_col,
-                cluster_col="final_cluster"
-            )
-            num_violations_cl = df_violations_cl.count()
-            print(f"After postprocessing: {num_violations_cl} cannot-link violations remain")
+        # Checkpoint after expensive iterations
+        df_result.checkpoint()
+        df_result.count()  # Force checkpoint execution
             
-            # Check remaining must-link violations
-            df_violations_ml = check_must_link_violations(
-                df_result,
-                df_ml,
-                id_col=id_col,
-                cluster_col="final_cluster"
-            )
-            num_violations_ml = df_violations_ml.count()
-            print(f"After postprocessing: {num_violations_ml} must-link violations remain")
-            
-            end_time = time.time()
-            print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
+        end_time = time.time()
+        print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
 
         # Validate final results
         validate_clustering_result(

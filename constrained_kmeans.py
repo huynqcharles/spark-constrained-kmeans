@@ -380,14 +380,12 @@ def postprocess_cannot_link(
 #  TỔNG HỢP: CHẠY PIPELINE
 ##########################
 def constrained_kmeans(
-    spark: SparkSession,
     df_data: DataFrame,
     df_ml: DataFrame,
     df_cl: DataFrame,
     k: int,
     id_col="id",
-    features_col="features",
-    handle_cannot_link=False
+    features_col="features"
 ):
     """
     Gọi tuần tự:
@@ -424,44 +422,43 @@ def constrained_kmeans(
     print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
 
     # 4) Xử lý cannot-link nếu được yêu cầu
-    if handle_cannot_link:
-        start_time = time.time()
+    start_time = time.time()
         
-        # Kiểm tra vi phạm cannot-link
-        df_violations = check_cannot_link_violations(
-            df_result, 
+    # Kiểm tra vi phạm cannot-link
+    df_violations = check_cannot_link_violations(
+        df_result, 
+        df_cl,
+        id_col=id_col,
+        cluster_col="final_cluster"  # Chỉ định rõ tên cột
+    )
+    num_violations = df_violations.count()
+        
+    if num_violations > 0:
+        print(f"Found {num_violations} cannot-link violations, attempting to fix...")
+            
+        # Xử lý vi phạm
+        df_result = postprocess_cannot_link(
+            df_result,
+            df_cl,
+            max_iter=5,
+            id_col=id_col,
+            features_col=features_col,
+            cluster_col="final_cluster"  # Chỉ định rõ tên cột
+        )
+            
+        # Kiểm tra lại sau khi xử lý
+        df_violations_after = check_cannot_link_violations(
+            df_result,
             df_cl,
             id_col=id_col,
             cluster_col="final_cluster"  # Chỉ định rõ tên cột
         )
-        num_violations = df_violations.count()
-        
-        if num_violations > 0:
-            print(f"Found {num_violations} cannot-link violations, attempting to fix...")
+        num_violations_after = df_violations_after.count()
             
-            # Xử lý vi phạm
-            df_result = postprocess_cannot_link(
-                df_result,
-                df_cl,
-                max_iter=5,
-                id_col=id_col,
-                features_col=features_col,
-                cluster_col="final_cluster"  # Chỉ định rõ tên cột
-            )
+        print(f"After postprocessing: {num_violations_after} cannot-link violations remain")
             
-            # Kiểm tra lại sau khi xử lý
-            df_violations_after = check_cannot_link_violations(
-                df_result,
-                df_cl,
-                id_col=id_col,
-                cluster_col="final_cluster"  # Chỉ định rõ tên cột
-            )
-            num_violations_after = df_violations_after.count()
-            
-            print(f"After postprocessing: {num_violations_after} cannot-link violations remain")
-            
-        end_time = time.time()
-        print(f"Step 4 (postprocess_cannot_link) took {end_time - start_time} seconds")
+    end_time = time.time()
+    print(f"Step 4 (postprocess_cannot_link) took {end_time - start_time} seconds")
 
     # Validate kết quả cuối cùng
     validate_clustering_result(

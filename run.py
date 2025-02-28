@@ -33,8 +33,7 @@ df_result = constrained_kmeans(
     df_cl,
     k=k,
     id_col="id",
-    features_col="features",
-    handle_cannot_link=True
+    features_col="features"
 )
 
 end_time = time.time()

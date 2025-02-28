@@ -1,3 +1,4 @@
+import time
 from pyspark.ml.clustering import KMeans
 from pyspark.sql import SparkSession
 from data_processor import prepare_data
@@ -20,10 +21,14 @@ class_counts.show()
 # Get number of unique classes for k
 k = df_class.select("class").distinct().count()
 
-# Khởi tạo KMeans với thuật toán k-means|| (mặc định của Spark)
+start_time = time.time()
 
+# Khởi tạo KMeans với thuật toán k-means|| (mặc định của Spark)
 kmeans = KMeans(k=k, initMode="k-means||", maxIter=10, seed=42)
 model = kmeans.fit(df_data)
+
+end_time = time.time()
+print(f"Time taken to mllib kmeans: {end_time - start_time} seconds")
 
 # Lấy dự đoán
 predictions = model.transform(df_data)
