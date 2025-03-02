@@ -6,27 +6,25 @@ def prepare_data():
     spark = SparkSession.builder.getOrCreate()
 
     # Read data from HDFS
-    dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
 
     dataset_path = "hdfs://localhost:9000/data/small/ecoli_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/ionosphere_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/ionosphere_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/monk-2_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/monk-2_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/moons_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/moons_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/newthyroid_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/newthyroid_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/sonar_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/spectfheart_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/spiral_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/spiral_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
-
-    dataset_path = "hdfs://localhost:9000/data/large/mnist_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
 
     df_data = spark.read.csv(dataset_path, header=True, inferSchema=True)
 
@@ -57,7 +55,7 @@ def prepare_data():
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.05.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.1.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.15.json"
-    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.2.json"
+    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.2.json"
 
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.05.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.1.json"
@@ -98,8 +96,6 @@ def prepare_data():
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.1.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.15.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.2.json"
-
-    constraints_path = "hdfs://localhost:9000/data/large/constraint sets/mnist_constraints_0.005.json"
 
     df_json = spark.read.json(constraints_path)
 

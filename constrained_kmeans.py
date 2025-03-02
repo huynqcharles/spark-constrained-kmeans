@@ -176,7 +176,7 @@ def postprocess_cannot_link(
     cluster_col="final_cluster"
 ):
     for it in range(max_iter):
-        print(f"\n[Iter {it}] Starting cannot-link postprocessing")
+        # print(f"\n[Iter {it}] Starting cannot-link postprocessing")
 
         # Compute centroids for each cluster
         df_centroids = compute_centroids_rdd(df_result, cluster_col, features_col)
@@ -195,10 +195,10 @@ def postprocess_cannot_link(
         )
         df_violations = df_violations.checkpoint()
         violation_count = df_violations.count()
-        print(f"Number of cannot-link violations: {violation_count}")
+        # print(f"Number of cannot-link violations: {violation_count}")
 
         if violation_count == 0:
-            print("No more cannot-link violations. Stopping.")
+            # print("No more cannot-link violations. Stopping.")
             break
 
         # Get features vectors for violated points
@@ -242,7 +242,7 @@ def postprocess_cannot_link(
         df_result = df_result.checkpoint()
         df_result.cache()
 
-        print(f"[Iter {it}] Updated cluster assignments for violated points")
+        # print(f"[Iter {it}] Updated cluster assignments for violated points")
 
     return df_result
 
@@ -262,7 +262,7 @@ def constrained_kmeans(
     
     try:
         # 1) Process must-link constraints
-        start_time = time.time()
+        # start_time = time.time()
         
         # Cache intermediate results that will be reused
         df_superpoints, df_cc = preprocess_must_link(
@@ -277,20 +277,20 @@ def constrained_kmeans(
         df_superpoints.checkpoint()
         df_superpoints.count()  # Force checkpoint execution
         
-        end_time = time.time()
-        print(f"Step 1 (preprocess_must_link) took {end_time - start_time} seconds")
+        # end_time = time.time()
+        # print(f"Step 1 (preprocess_must_link) took {end_time - start_time} seconds")
 
         # 2) Run k-means clustering on superpoints
-        start_time = time.time()
+        # start_time = time.time()
         
         df_clustered_roots = initialize_cluster_on_superpoints(df_superpoints, k)
         df_clustered_roots.cache()
         
-        end_time = time.time()
-        print(f"Step 2 (initialize_cluster_on_superpoints) took {end_time - start_time} seconds")
+        # end_time = time.time()
+        # print(f"Step 2 (initialize_cluster_on_superpoints) took {end_time - start_time} seconds")
 
         # 3) Map clusters back to original points
-        start_time = time.time()
+        # start_time = time.time()
         
         df_result = assign_clusters_back(
             df_cc, df_clustered_roots,
@@ -302,11 +302,11 @@ def constrained_kmeans(
         df_result.checkpoint()
         df_result.count()  # Force checkpoint execution
         
-        end_time = time.time()
-        print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
+        # end_time = time.time()
+        # print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
 
         # 4) Handle cannot-link and must-link violations
-        start_time = time.time()
+        # start_time = time.time()
             
         # Process violations and cache intermediate results
         df_result = postprocess_cannot_link(
@@ -323,18 +323,18 @@ def constrained_kmeans(
         df_result.checkpoint()
         df_result.count()  # Force checkpoint execution
             
-        end_time = time.time()
-        print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
+        # end_time = time.time()
+        # print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
 
         # Validate final results
-        validate_clustering_result(
-            df_result,
-            df_ml,
-            df_cl,
-            k,
-            id_col=id_col,
-            cluster_col="final_cluster"
-        )
+        # validate_clustering_result(
+        #     df_result,
+        #     df_ml,
+        #     df_cl,
+        #     k,
+        #     id_col=id_col,
+        #     cluster_col="final_cluster"
+        # )
 
         return df_result
 

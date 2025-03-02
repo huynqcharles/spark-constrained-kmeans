@@ -170,6 +170,7 @@ def euclid_dist_pd(feat_series: pd.Series, centroid_series: pd.Series) -> pd.Ser
 def postprocess_cannot_link(
     df_result,
     df_cl,
+    df_ml=None,  # Thêm DataFrame chứa ràng buộc must-link
     max_iter=5,
     id_col="id",
     features_col="features", 
@@ -218,6 +219,48 @@ def postprocess_cannot_link(
 
         df_candidates = df_candidates.checkpoint()
         df_candidates.cache()
+        
+        # *** MỚI: Thu thập thông tin must-link cho các điểm vi phạm ***
+        if df_ml is not None:
+            # Tạo DataFrame các điểm must-link cho mỗi điểm vi phạm
+            # Giả sử df_ml có cột id1 và id2 là các cặp điểm must-link
+            # Lấy thông tin về cụm hiện tại của các điểm must-link
+            df_ml_info = (
+                df_ml
+                .join(
+                    df_result.select(F.col(id_col), F.col(cluster_col)),
+                    (df_ml.id1 == df_result[id_col]) | (df_ml.id2 == df_result[id_col]),
+                    "inner"
+                )
+                .select(
+                    F.when(df_ml.id1 == df_result[id_col], df_ml.id2)
+                    .otherwise(df_ml.id1).alias("ml_point"),
+                    df_result[id_col].alias("point"),
+                    df_result[cluster_col].alias("ml_cluster")
+                )
+            )
+            
+            # Join thông tin must-link với các điểm vi phạm
+            df_candidates = (
+                df_candidates
+                .join(
+                    F.broadcast(df_ml_info),
+                    df_candidates.id2 == df_ml_info.point,
+                    "left"
+                )
+            )
+            
+            # Lọc ra các ứng viên không vi phạm must-link
+            # Một cụm được coi là hợp lệ nếu:
+            # 1. Không có ràng buộc must-link cho điểm này (ml_point IS NULL)
+            # 2. HOẶC cụm mới giống cụm của các điểm must-link (cluster_id = ml_cluster)
+            df_candidates = df_candidates.filter(
+                F.col("ml_point").isNull() | 
+                (F.col("cluster_id") == F.col("ml_cluster"))
+            )
+
+            df_candidates.checkpoint()
+            df_candidates.count()  # Force checkpoint execution
 
         # Select closest valid cluster for each violated point
         w = Window.partitionBy("id2").orderBy(F.col("dist_col").asc())
@@ -312,6 +355,7 @@ def constrained_kmeans(
         df_result = postprocess_cannot_link(
                 df_result,
                 df_cl,
+                df_ml,
                 max_iter=5,
                 id_col=id_col,
                 features_col=features_col,
