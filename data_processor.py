@@ -26,6 +26,8 @@ def prepare_data():
 
     dataset_path = "hdfs://localhost:9000/data/small/vehicle_data.csv"
 
+    dataset_path = "hdfs://localhost:9000/data/large/mnist_data.csv"
+
     df_data = spark.read.csv(dataset_path, header=True, inferSchema=True)
 
     # Print dataset information
@@ -47,7 +49,7 @@ def prepare_data():
     df_data = assembler.transform(df_data).select("id", "features")
 
     # Read constraints from HDFS
-    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.05.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.05.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.1.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.15.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.2.json"
@@ -96,6 +98,8 @@ def prepare_data():
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.1.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.15.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/vehicle_constraints_0.2.json"
+
+    constraints_path = "hdfs://localhost:9000/data/large/constraint sets/mnist_constraints_0.005.json"
 
     df_json = spark.read.json(constraints_path)
 
