@@ -6,9 +6,9 @@ def prepare_data():
     spark = SparkSession.builder.getOrCreate()
 
     # Read data from HDFS
-    # dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
+    dataset_path = "hdfs://localhost:9000/data/small/breast_cancer_data.csv"
 
-    dataset_path = "hdfs://localhost:9000/data/small/ecoli_data.csv"
+    # dataset_path = "hdfs://localhost:9000/data/small/ecoli_data.csv"
 
     # dataset_path = "hdfs://localhost:9000/data/small/ionosphere_data.csv"
 
@@ -47,7 +47,7 @@ def prepare_data():
     df_data = assembler.transform(df_data).select("id", "features")
 
     # Read constraints from HDFS
-    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.05.json"
+    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.05.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.1.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.15.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/breast_cancer_constraints_0.2.json"
@@ -55,7 +55,7 @@ def prepare_data():
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.05.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.1.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.15.json"
-    constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.2.json"
+    # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ecoli_constraints_0.2.json"
 
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.05.json"
     # constraints_path = "hdfs://localhost:9000/data/small/constraint sets/ionosphere_constraints_0.1.json"

@@ -23,23 +23,23 @@ k = df_class.select("class").distinct().count()
 
 start_time = time.time()
 
-# Khởi tạo KMeans với thuật toán k-means|| (mặc định của Spark)
+# Initialize KMeans with k-means|| algorithm
 kmeans = KMeans(k=k, initMode="k-means||", maxIter=10, seed=42)
 model = kmeans.fit(df_data)
 
 end_time = time.time()
 print(f"Time taken to mllib kmeans: {end_time - start_time} seconds")
 
-# Lấy dự đoán
+# Get predictions
 predictions = model.transform(df_data)
 
-# Giả sử DataFrame df_class có cột "id" chung với df_class để thực hiện join
+# Assuming df_class has a common 'id' column with df_class for joining
 pred_with_label = predictions.join(df_class, on="id")
 
-# Thu thập nhãn dự đoán và nhãn thực về driver để tính ARI
+# Collect predicted labels and true labels to driver for ARI calculation
 preds = [row.prediction for row in pred_with_label.select("prediction").collect()]
 true_labels = [row["class"] for row in pred_with_label.select("class").collect()]
 
-# Tính ARI bằng hàm adjusted_rand_score từ scikit-learn
+# Calculate ARI using adjusted_rand_score
 ari = adjusted_rand_score(true_labels, preds)
 print("Adjusted Rand Index (ARI):", ari)

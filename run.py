@@ -2,7 +2,7 @@ import time
 
 from pyspark.sql import SparkSession
 
-from constrained_kmeans import constrained_kmeans
+from constrained_kmeans_test import constrained_kmeans
 from data_processor import prepare_data
 from sklearn.metrics import adjusted_rand_score
 
@@ -33,7 +33,8 @@ df_result = constrained_kmeans(
     df_cl,
     k=k,
     id_col="id",
-    features_col="features"
+    features_col="features",
+    verbose=True
 )
 
 end_time = time.time()

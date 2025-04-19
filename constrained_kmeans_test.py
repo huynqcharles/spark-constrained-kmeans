@@ -1,84 +1,69 @@
 import time
 import warnings
 import numpy as np
+import pandas as pd
 
 from graphframes import GraphFrame
-import pandas as pd
 from pyspark.ml.clustering import KMeans
 from pyspark.ml.functions import vector_to_array
-from pyspark.ml.linalg import DenseVector, VectorUDT
-from pyspark.sql import SparkSession, DataFrame
-import pyspark.sql.functions as F
-from pyspark.sql.functions import udf, broadcast, pandas_udf
-from pyspark.sql.types import IntegerType, DoubleType, StructType, StructField
+from pyspark.ml.stat import Summarizer
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import pandas_udf
+from pyspark.sql.types import DoubleType
 from pyspark.sql.window import Window
+import pyspark.sql.functions as F
 
 warnings.filterwarnings("ignore", message="DataFrame.sql_ctx is an internal property, and will be removed in future releases")
 warnings.filterwarnings("ignore", message="DataFrame constructor is internal. Do not directly use it.")
 
-
 def preprocess_must_link(
     df_data: DataFrame,
-    df_ml: DataFrame,
-    id_col: str = "id",
+    df_ml:   DataFrame,
+    id_col:       str = "id",
     features_col: str = "features"
-):
-    # Create vertices from original data
-    df_vertices = df_data.select(
+) -> tuple[DataFrame, DataFrame]:
+    
+    spark = SparkSession.builder.getOrCreate()
+    # Create vertices & edges
+    df_vert = df_data.select(
         F.col(id_col).alias("id"),
-        F.col(features_col).alias("features"))
-    df_vertices.cache()
-    
-    # Create edges from must-link pairs (normalized to have smaller ID as src)
-    df_edges = df_ml.select(
-        F.least(F.col("id1"), F.col("id2")).alias("src"),
-        F.greatest(F.col("id1"), F.col("id2")).alias("dst"))
-    df_edges.cache()
-    
-    # Create GraphFrame and compute connected components
-    gf = GraphFrame(df_vertices, df_edges)
+        F.col(features_col).alias("features")
+    ).cache()
+    df_edge = df_ml.select(
+        F.least("id1","id2").alias("src"), 
+        F.greatest("id1","id2").alias("dst")
+    ).cache()
 
-    numPartitions = 40
-    df_vertices = df_vertices.repartition(numPartitions, F.col("id"))
-    df_edges = df_edges.repartition(numPartitions, F.col("src"))
+    # Dynamic repartitioning
+    npart = spark.sparkContext.defaultParallelism * 2
+    df_vert = df_vert.repartition(npart, "id")
+    df_edge = df_edge.repartition(npart, "src")
 
-    gf_cc = gf.connectedComponents()
-    df_cc = gf_cc.select("id", F.col("component").alias("root"))
-    
-    # Join components with original features
-    df_join = df_cc.join(df_vertices, on="id", how="left")
-    df_join.cache()
-    
-    # Convert DenseVector to array
-    df_join = df_join.withColumn("features_arr", vector_to_array("features"))
-    sample = df_join.select("features_arr").limit(1).collect()
-    
-    # Get vector dimension
-    if sample:
-        dim = len(sample[0]["features_arr"])
-    else:
-        raise ValueError("No data to determine vector dimension")
-    
-    # Split array into separate dimension columns for optimized aggregation
-    feat_columns = [F.col("features_arr")[i].alias(f"feat_{i}") for i in range(dim)]
-    df_join = df_join.select("*", *feat_columns)
-    _ = df_join.select([f"feat_{i}" for i in range(dim)]).limit(1).collect()
+    # Find connected components
+    gf_cc = GraphFrame(df_vert, df_edge).connectedComponents()
+    df_cc = gf_cc.select(
+        F.col("id"),
+        F.col("component").alias("root")
+    )
 
-    # Group by component and compute average for each dimension
-    df_join = df_join.repartition(numPartitions, F.col("root"))
-    agg_exprs = [F.avg(f"feat_{i}").alias(f"avg_{i}") for i in range(dim)]
-    df_grouped = df_join.groupBy("root").agg(*agg_exprs)
-    
-    # Combine averaged values back into array/vector
-    avg_cols = [F.col(f"avg_{i}") for i in range(dim)]
-    df_superpoints = df_grouped.withColumn("avg_features", F.array(*avg_cols)) \
-                               .select(F.col("root"), F.col("avg_features").alias("features"))
-    
-    # Convert array back to DenseVector
-    to_vector_udf = udf(lambda arr: DenseVector(arr), VectorUDT())
-    df_superpoints = df_superpoints.withColumn("features", to_vector_udf("features"))
+    # Join IDs with features and compute mean vector for each component
+    df_join = (
+      df_cc
+      .join(df_vert, on="id", how="inner")
+      .repartition(npart, "root")
+      .select("root", "features")
+    )
 
-    return df_superpoints, df_cc
+    # Use Summarizer to compute centroids (means) for each group
+    df_super = (
+      df_join
+      .groupBy("root")
+      .agg(
+         Summarizer.mean(F.col("features")).alias("features")
+      )
+    )
+
+    return df_super, df_cc
 
 def initialize_cluster_on_superpoints(
     df_superpoints: DataFrame,
@@ -102,65 +87,46 @@ def assign_clusters_back(
     df_data: DataFrame,
     id_col: str = "id"
 ) -> DataFrame:
-    # Broadcast small DataFrames if needed
-    df_cc = broadcast(df_cc)
-    df_clustered_roots = broadcast(df_clustered_roots)
+    """
+    1) Join df_cc (id → root) with df_clustered_roots (root → cluster) 
+    2) Select (id, final_cluster) and broadcast
+    3) Direct join with df_data on id
+    """
 
-    # Join to get cluster assignments for each ID
-    df_id_cluster = df_cc.join(df_clustered_roots, on="root", how="left")
-    
-    df_id_cluster = df_id_cluster.alias("idc")
-    df_data_alias = df_data.alias("data")
-    
-    # Join back with original data
-    df_final = df_data_alias.join(
-        df_id_cluster,
-        F.col("data." + id_col) == F.col("idc.id"), 
-        how="left"
+    # Create table mapping id → final_cluster
+    df_id_cluster = (
+        df_cc
+        .join(df_clustered_roots, on="root", how="left")
+        .select(
+            F.col(id_col).alias("id"), 
+            F.col("cluster").alias("final_cluster")
+        )
+    ).cache()
+
+    # Broadcast id_cluster table
+    df_id_cluster = F.broadcast(df_id_cluster)
+
+    # Join with original data
+    df_final = (
+        df_data
+        .join(df_id_cluster, on=id_col, how="left")
     )
-    
-    df_final = df_final.withColumn("final_cluster", F.col("idc.cluster"))
-    
-    # Clean up temporary columns
-    df_final = df_final.drop(F.col("idc.id"))
-    df_final = df_final.drop("root", "cluster")
-    
+
     return df_final
 
-
-def compute_centroids_rdd(df, cluster_col="final_cluster", features_col="features"):
-    spark = SparkSession.builder.getOrCreate()
-
-    # Convert to RDD of (cluster, (features, 1)) pairs
-    rdd = df.select(cluster_col, features_col).rdd.map(
-        lambda row: (row[cluster_col], (row[features_col], 1))
+def compute_centroids_df(
+    df: DataFrame,
+    cluster_col: str = "final_cluster",
+    features_col: str = "features"
+) -> DataFrame:
+    # Use Summarizer to get mean vector per cluster
+    mean_metric = Summarizer.mean(F.col(features_col))
+    df_centroids = (
+        df.groupBy(cluster_col)
+          .agg(mean_metric.alias("centroid"))
+          .withColumnRenamed(cluster_col, "cluster_id")
     )
-
-    # Reduce by key to sum vectors and counts per cluster
-    def merge_values(a, b):
-        vec_a, count_a = a
-        vec_b, count_b = b
-        sum_vec = DenseVector(np.add(vec_a.toArray(), vec_b.toArray()))
-        return (sum_vec, count_a + count_b)
-    
-    aggregated = rdd.reduceByKey(merge_values)
-
-    # Compute average vector (centroid) for each cluster
-    def compute_average(item):
-        cluster, (sum_vec, count) = item
-        avg_array = sum_vec.toArray() / count
-        return (cluster, DenseVector(avg_array))
-    
-    centroids_rdd = aggregated.map(compute_average)
-    
-    # Convert results to DataFrame
-    schema = StructType([
-        StructField("cluster_id", IntegerType(), True),
-        StructField("centroid", VectorUDT(), True)
-    ])
-    
-    centroids_df = spark.createDataFrame(centroids_rdd, schema=schema)
-    return centroids_df
+    return df_centroids
 
 # Pandas UDF: Calculate Euclidean distance between vectors
 @pandas_udf(DoubleType())
@@ -170,17 +136,18 @@ def euclid_dist_pd(feat_series: pd.Series, centroid_series: pd.Series) -> pd.Ser
 def postprocess_cannot_link(
     df_result,
     df_cl,
-    df_ml=None,  # Thêm DataFrame chứa ràng buộc must-link
     max_iter=5,
     id_col="id",
     features_col="features", 
     cluster_col="final_cluster"
 ):
     for it in range(max_iter):
-        print(f"\n[Iter {it}] Starting cannot-link postprocessing")
-
         # Compute centroids for each cluster
-        df_centroids = compute_centroids_rdd(df_result, cluster_col, features_col)
+        df_centroids = compute_centroids_df(
+            df_result,
+            cluster_col=cluster_col,
+            features_col=features_col
+        )
         df_centroids = F.broadcast(df_centroids)
         df_centroids.cache()
 
@@ -196,10 +163,8 @@ def postprocess_cannot_link(
         )
         df_violations = df_violations.checkpoint()
         violation_count = df_violations.count()
-        print(f"Number of cannot-link violations: {violation_count}")
 
         if violation_count == 0:
-            print("No more cannot-link violations. Stopping.")
             break
 
         # Get features vectors for violated points
@@ -219,48 +184,6 @@ def postprocess_cannot_link(
 
         df_candidates = df_candidates.checkpoint()
         df_candidates.cache()
-        
-        # *** MỚI: Thu thập thông tin must-link cho các điểm vi phạm ***
-        if df_ml is not None:
-            # Tạo DataFrame các điểm must-link cho mỗi điểm vi phạm
-            # Giả sử df_ml có cột id1 và id2 là các cặp điểm must-link
-            # Lấy thông tin về cụm hiện tại của các điểm must-link
-            df_ml_info = (
-                df_ml
-                .join(
-                    df_result.select(F.col(id_col), F.col(cluster_col)),
-                    (df_ml.id1 == df_result[id_col]) | (df_ml.id2 == df_result[id_col]),
-                    "inner"
-                )
-                .select(
-                    F.when(df_ml.id1 == df_result[id_col], df_ml.id2)
-                    .otherwise(df_ml.id1).alias("ml_point"),
-                    df_result[id_col].alias("point"),
-                    df_result[cluster_col].alias("ml_cluster")
-                )
-            )
-            
-            # Join thông tin must-link với các điểm vi phạm
-            df_candidates = (
-                df_candidates
-                .join(
-                    F.broadcast(df_ml_info),
-                    df_candidates.id2 == df_ml_info.point,
-                    "left"
-                )
-            )
-            
-            # Lọc ra các ứng viên không vi phạm must-link
-            # Một cụm được coi là hợp lệ nếu:
-            # 1. Không có ràng buộc must-link cho điểm này (ml_point IS NULL)
-            # 2. HOẶC cụm mới giống cụm của các điểm must-link (cluster_id = ml_cluster)
-            df_candidates = df_candidates.filter(
-                F.col("ml_point").isNull() | 
-                (F.col("cluster_id") == F.col("ml_cluster"))
-            )
-
-            df_candidates.checkpoint()
-            df_candidates.count()  # Force checkpoint execution
 
         # Select closest valid cluster for each violated point
         w = Window.partitionBy("id2").orderBy(F.col("dist_col").asc())
@@ -285,160 +208,82 @@ def postprocess_cannot_link(
         df_result = df_result.checkpoint()
         df_result.cache()
 
-        print(f"[Iter {it}] Updated cluster assignments for violated points")
-
     return df_result
-
 
 def constrained_kmeans(
     df_data: DataFrame,
     df_ml: DataFrame,
     df_cl: DataFrame,
     k: int,
-    id_col="id",
-    features_col="features"
-):
-    # Cache input dataframes since they'll be used multiple times
-    df_data.cache()
-    df_ml.cache()
-    df_cl.cache()
+    id_col: str = "id",
+    features_col: str = "features",
+    verbose: bool = False
+) -> DataFrame:
     
+    spark = SparkSession.builder.getOrCreate()
+    npart = spark.sparkContext.defaultParallelism * 2
+
+    # cache inputs
+    df_data = df_data.cache()
+    df_ml   = df_ml.cache()
+    df_cl   = df_cl.cache()
+
     try:
-        # 1) Process must-link constraints
-        start_time = time.time()
-        
-        # Cache intermediate results that will be reused
+        # Step 1: preprocess must‑link
+        t0 = time.time()
         df_superpoints, df_cc = preprocess_must_link(
-            df_data, df_ml,
-            id_col=id_col,
-            features_col=features_col
+            df_data, df_ml, id_col=id_col, features_col=features_col
         )
-        df_superpoints.cache()
-        df_cc.cache()
-        
-        # Checkpoint after expensive computation
-        df_superpoints.checkpoint()
-        df_superpoints.count()  # Force checkpoint execution
-        
-        end_time = time.time()
-        print(f"Step 1 (preprocess_must_link) took {end_time - start_time} seconds")
+        df_superpoints = df_superpoints \
+            .repartition(npart, F.col("root")) \
+            .cache()
+        df_cc = df_cc \
+            .repartition(npart, F.col("id")) \
+            .cache()
+        # checkpoint to cut long DAG
+        df_superpoints = df_superpoints.checkpoint()
+        if verbose:
+            print(f"[Step1] preprocess_must_link: {time.time()-t0:.2f}s")
 
-        # 2) Run k-means clustering on superpoints
-        start_time = time.time()
-        
+        # Step 2: initialize on superpoints
+        t1 = time.time()
         df_clustered_roots = initialize_cluster_on_superpoints(df_superpoints, k)
-        df_clustered_roots.cache()
-        
-        end_time = time.time()
-        print(f"Step 2 (initialize_cluster_on_superpoints) took {end_time - start_time} seconds")
+        df_clustered_roots = df_clustered_roots.cache()
+        if verbose:
+            print(f"[Step2] initialize_cluster: {time.time()-t1:.2f}s")
 
-        # 3) Map clusters back to original points
-        start_time = time.time()
-        
+        # Step 3: assign back to original points
+        t2 = time.time()
         df_result = assign_clusters_back(
-            df_cc, df_clustered_roots,
-            df_data, id_col=id_col
-        )
-        df_result.cache()
-        
-        # Checkpoint results before post-processing
-        df_result.checkpoint()
-        df_result.count()  # Force checkpoint execution
-        
-        end_time = time.time()
-        print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
+            df_cc, df_clustered_roots, df_data, id_col=id_col
+        ).cache()
+        # checkpoint once before postprocess
+        df_result = df_result.checkpoint()
+        if verbose:
+            print(f"[Step3] assign_clusters_back: {time.time()-t2:.2f}s")
 
-        # 4) Handle cannot-link and must-link violations
-        start_time = time.time()
-            
-        # Process violations and cache intermediate results
+        # Step 4: postprocess cannot‑link
+        t3 = time.time()
         df_result = postprocess_cannot_link(
-                df_result,
-                df_cl,
-                df_ml,
-                max_iter=5,
-                id_col=id_col,
-                features_col=features_col,
-                cluster_col="final_cluster"
-        )
-        df_result.cache()
-            
-        # Checkpoint after expensive iterations
-        df_result.checkpoint()
-        df_result.count()  # Force checkpoint execution
-            
-        end_time = time.time()
-        print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
-
-        # Validate final results
-        validate_clustering_result(
             df_result,
-            df_ml,
             df_cl,
-            k,
+            max_iter=5,
             id_col=id_col,
+            features_col=features_col,
             cluster_col="final_cluster"
-        )
+        ).cache()
+        # final checkpoint
+        df_result = df_result.checkpoint()
+        if verbose:
+            print(f"[Step4] postprocess_cannot_link: {time.time()-t3:.2f}s")
 
         return df_result
 
     finally:
-        # Unpersist cached DataFrames to free up memory
-        df_data.unpersist()
-        df_ml.unpersist()
-        df_cl.unpersist()
-        
-        try:
-            df_superpoints.unpersist()
-            df_cc.unpersist()
-            df_clustered_roots.unpersist()
-        except:
-            pass
-
-
-def validate_clustering_result(df_result, df_ml, df_cl, k, id_col="id", cluster_col="final_cluster"):
-    # Check number of clusters
-    num_clusters = df_result.select(cluster_col).distinct().count()
-    assert num_clusters <= k, f"Found {num_clusters} clusters, expected <= {k}"
-    
-    # Check constraints
-    ml_violations = check_must_link_violations(df_result, df_ml, id_col)
-    num_ml_violations = ml_violations.count()
-    
-    cl_violations = check_cannot_link_violations(df_result, df_cl, id_col)
-    num_cl_violations = cl_violations.count()
-    
-    print(f"\nValidation Results:")
-    print(f"Number of clusters: {num_clusters}")
-    print(f"Must-link violations: {num_ml_violations}")
-    print(f"Cannot-link violations: {num_cl_violations}")
-
-def check_cannot_link_violations(df_clustered, df_cl, id_col="id", cluster_col="final_cluster"):
-    return df_cl.join(
-        df_clustered.select(
-            F.col(id_col).alias("id1"),
-            F.col(cluster_col).alias("cluster1")
-        ),
-        "id1"
-    ).join(
-        df_clustered.select(
-            F.col(id_col).alias("id2"),
-            F.col(cluster_col).alias("cluster2")
-        ),
-        "id2"
-    ).filter(F.col("cluster1") == F.col("cluster2"))
-
-def check_must_link_violations(df_clustered, df_ml, id_col="id", cluster_col="final_cluster"):
-    return df_ml.join(
-        df_clustered.select(
-            F.col(id_col).alias("id1"),
-            F.col(cluster_col).alias("cluster1")
-        ),
-        "id1"
-    ).join(
-        df_clustered.select(
-            F.col(id_col).alias("id2"),
-            F.col(cluster_col).alias("cluster2")
-        ),
-        "id2"
-    ).filter(F.col("cluster1") != F.col("cluster2"))
+        # clean up caches
+        for df in (df_data, df_ml, df_cl,
+                   df_superpoints, df_cc, df_clustered_roots, df_result):
+            try:
+                df.unpersist()
+            except:
+                pass

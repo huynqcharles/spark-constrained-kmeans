@@ -176,8 +176,6 @@ def postprocess_cannot_link(
     cluster_col="final_cluster"
 ):
     for it in range(max_iter):
-        # print(f"\n[Iter {it}] Starting cannot-link postprocessing")
-
         # Compute centroids for each cluster
         df_centroids = compute_centroids_rdd(df_result, cluster_col, features_col)
         df_centroids = F.broadcast(df_centroids)
@@ -195,10 +193,8 @@ def postprocess_cannot_link(
         )
         df_violations = df_violations.checkpoint()
         violation_count = df_violations.count()
-        # print(f"Number of cannot-link violations: {violation_count}")
 
         if violation_count == 0:
-            # print("No more cannot-link violations. Stopping.")
             break
 
         # Get features vectors for violated points
@@ -242,8 +238,6 @@ def postprocess_cannot_link(
         df_result = df_result.checkpoint()
         df_result.cache()
 
-        # print(f"[Iter {it}] Updated cluster assignments for violated points")
-
     return df_result
 
 
@@ -262,7 +256,7 @@ def constrained_kmeans(
     
     try:
         # 1) Process must-link constraints
-        # start_time = time.time()
+        start_time = time.time()
         
         # Cache intermediate results that will be reused
         df_superpoints, df_cc = preprocess_must_link(
@@ -277,20 +271,20 @@ def constrained_kmeans(
         df_superpoints.checkpoint()
         df_superpoints.count()  # Force checkpoint execution
         
-        # end_time = time.time()
-        # print(f"Step 1 (preprocess_must_link) took {end_time - start_time} seconds")
+        end_time = time.time()
+        print(f"Step 1 (preprocess_must_link) took {end_time - start_time} seconds")
 
         # 2) Run k-means clustering on superpoints
-        # start_time = time.time()
+        start_time = time.time()
         
         df_clustered_roots = initialize_cluster_on_superpoints(df_superpoints, k)
         df_clustered_roots.cache()
         
-        # end_time = time.time()
-        # print(f"Step 2 (initialize_cluster_on_superpoints) took {end_time - start_time} seconds")
+        end_time = time.time()
+        print(f"Step 2 (initialize_cluster_on_superpoints) took {end_time - start_time} seconds")
 
         # 3) Map clusters back to original points
-        # start_time = time.time()
+        start_time = time.time()
         
         df_result = assign_clusters_back(
             df_cc, df_clustered_roots,
@@ -302,11 +296,11 @@ def constrained_kmeans(
         df_result.checkpoint()
         df_result.count()  # Force checkpoint execution
         
-        # end_time = time.time()
-        # print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
+        end_time = time.time()
+        print(f"Step 3 (assign_clusters_back) took {end_time - start_time} seconds")
 
         # 4) Handle cannot-link and must-link violations
-        # start_time = time.time()
+        start_time = time.time()
             
         # Process violations and cache intermediate results
         df_result = postprocess_cannot_link(
@@ -323,18 +317,8 @@ def constrained_kmeans(
         df_result.checkpoint()
         df_result.count()  # Force checkpoint execution
             
-        # end_time = time.time()
-        # print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
-
-        # Validate final results
-        # validate_clustering_result(
-        #     df_result,
-        #     df_ml,
-        #     df_cl,
-        #     k,
-        #     id_col=id_col,
-        #     cluster_col="final_cluster"
-        # )
+        end_time = time.time()
+        print(f"Step 4 (postprocess_link_constraints) took {end_time - start_time} seconds")
 
         return df_result
 
@@ -350,51 +334,3 @@ def constrained_kmeans(
             df_clustered_roots.unpersist()
         except:
             pass
-
-
-def validate_clustering_result(df_result, df_ml, df_cl, k, id_col="id", cluster_col="final_cluster"):
-    # Check number of clusters
-    num_clusters = df_result.select(cluster_col).distinct().count()
-    assert num_clusters <= k, f"Found {num_clusters} clusters, expected <= {k}"
-    
-    # Check constraints
-    ml_violations = check_must_link_violations(df_result, df_ml, id_col)
-    num_ml_violations = ml_violations.count()
-    
-    cl_violations = check_cannot_link_violations(df_result, df_cl, id_col)
-    num_cl_violations = cl_violations.count()
-    
-    print(f"\nValidation Results:")
-    print(f"Number of clusters: {num_clusters}")
-    print(f"Must-link violations: {num_ml_violations}")
-    print(f"Cannot-link violations: {num_cl_violations}")
-
-def check_cannot_link_violations(df_clustered, df_cl, id_col="id", cluster_col="final_cluster"):
-    return df_cl.join(
-        df_clustered.select(
-            F.col(id_col).alias("id1"),
-            F.col(cluster_col).alias("cluster1")
-        ),
-        "id1"
-    ).join(
-        df_clustered.select(
-            F.col(id_col).alias("id2"),
-            F.col(cluster_col).alias("cluster2")
-        ),
-        "id2"
-    ).filter(F.col("cluster1") == F.col("cluster2"))
-
-def check_must_link_violations(df_clustered, df_ml, id_col="id", cluster_col="final_cluster"):
-    return df_ml.join(
-        df_clustered.select(
-            F.col(id_col).alias("id1"),
-            F.col(cluster_col).alias("cluster1")
-        ),
-        "id1"
-    ).join(
-        df_clustered.select(
-            F.col(id_col).alias("id2"),
-            F.col(cluster_col).alias("cluster2")
-        ),
-        "id2"
-    ).filter(F.col("cluster1") != F.col("cluster2"))
